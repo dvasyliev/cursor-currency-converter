@@ -1,23 +1,27 @@
-import type { CurrencyCode } from './currencies';
+import type { CurrencyCode } from "./currencies";
 
-export const USD_RATES: Record<CurrencyCode, number> = {
-  USD: 1,
-  EUR: 0.92,
-  GBP: 0.8,
-  NPR: 118.16,
-  INR: 83.1,
-  JPY: 151.2,
-  AUD: 1.53,
-  CAD: 1.37
-};
+// Frankfurter API conversion using daily ECB rates
+// Docs: https://www.frankfurter.app/docs/
+export async function convert(
+  amount: number,
+  from: CurrencyCode,
+  to: CurrencyCode
+) {
+  const url = new URL("https://api.frankfurter.app/latest");
+  url.searchParams.set("amount", String(amount));
+  url.searchParams.set("from", from);
+  url.searchParams.set("to", to);
 
-export function getRate(from: CurrencyCode, to: CurrencyCode): number {
-  const rateToUSD = 1 / USD_RATES[from];
-  return rateToUSD * USD_RATES[to];
+  const res = await fetch(url.toString());
+  if (!res.ok) {
+    throw new Error(`Frankfurter error: ${res.status}`);
+  }
+  const data: { amount: number; base: string; rates: Record<string, number> } =
+    await res.json();
+  const total = data.rates[to];
+  if (typeof total !== "number") {
+    throw new Error("Target currency not in response");
+  }
+  const rate = total / amount;
+  return { rate, total };
 }
-
-export function convert(amount: number, from: CurrencyCode, to: CurrencyCode) {
-  const rate = getRate(from, to);
-  return { rate, total: amount * rate };
-}
-

@@ -11,24 +11,45 @@ function App() {
   const [from, setFrom] = useState<CurrencyCode>("USD");
   const [to, setTo] = useState<CurrencyCode>("NPR");
   const [total, setTotal] = useState<number | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const isValidAmount = useMemo(() => {
     const n = Number(amount);
     return Number.isFinite(n) && n > 0;
   }, [amount]);
 
-  const handleConvert = () => {
+  const handleConvert = async () => {
     if (!isValidAmount) return;
-    const { total } = convert(Number(amount), from, to);
-    setTotal(total);
+    setError(null);
+    setLoading(true);
+    try {
+      const { total } = await convert(Number(amount), from, to);
+      setTotal(total);
+    } catch (e: any) {
+      setError(e?.message || "Failed to fetch rate");
+      setTotal(null);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleSwap = () => {
+  const handleSwap = async () => {
     setFrom(to);
     setTo(from);
-    if (total != null && isValidAmount) {
-      const { total: swapped } = convert(Number(amount), to, from);
-      setTotal(swapped);
+    if (isValidAmount) {
+      // Recalculate using swapped currencies
+      try {
+        setLoading(true);
+        const { total: swapped } = await convert(Number(amount), to, from);
+        setTotal(swapped);
+        setError(null);
+      } catch (e: any) {
+        setError(e?.message || "Failed to fetch rate");
+        setTotal(null);
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
@@ -57,16 +78,22 @@ function App() {
           />
         </div>
 
-        {total != null && (
+        {error && (
+          <p className="result" style={{ color: "#b91c1c" }}>
+            {error}
+          </p>
+        )}
+        {loading && <p className="result">Fetching latest rate…</p>}
+        {total != null && !loading && !error && (
           <Result amount={Number(amount)} from={from} to={to} total={total} />
         )}
 
         <button
           className="btn-primary"
           onClick={handleConvert}
-          disabled={!isValidAmount}
+          disabled={!isValidAmount || loading}
         >
-          Get Exchange Rate
+          {loading ? "Loading…" : "Get Exchange Rate"}
         </button>
       </div>
     </div>
