@@ -39,6 +39,13 @@ input, select, button {
   font: inherit;
 }
 
+.help {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .row {
   display: grid;
   grid-template-columns: 1fr auto 1fr;

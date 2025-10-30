@@ -1,4 +1,4 @@
-import type { CurrencyCode } from "./currencies";
+type CurrencyCode = string;
 
 // Frankfurter API conversion using daily ECB rates
 // Docs: https://www.frankfurter.app/docs/

@@ -3,16 +3,71 @@ import AmountInput from "./components/AmountInput";
 import CurrencySelect from "./components/CurrencySelect";
 import SwapButton from "./components/SwapButton";
 import Result from "./components/Result";
-import { CURRENCIES, type CurrencyCode } from "./data/currencies";
 import { convert } from "./data/rates";
 
 function App() {
   const [amount, setAmount] = useState<string>("1");
-  const [from, setFrom] = useState<CurrencyCode>("USD");
-  const [to, setTo] = useState<CurrencyCode>("NPR");
+  const [from, setFrom] = useState<string>("USD");
+  const [to, setTo] = useState<string>("NPR");
   const [total, setTotal] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [currencies, setCurrencies] = useState<
+    { code: string; name: string; flag?: string }[]
+  >([]);
+
+  React.useEffect(() => {
+    const controller = new AbortController();
+    async function loadSymbols() {
+      try {
+        const res = await fetch("https://api.frankfurter.app/currencies", {
+          signal: controller.signal,
+        });
+        if (!res.ok) throw new Error("Failed to load currencies");
+        const data: Record<string, string> = await res.json();
+        const list = Object.entries(data)
+          .map(([code, name]) => ({
+            code,
+            name,
+            flag: makeFlagFromCurrency(code),
+          }))
+          .sort((a, b) => a.code.localeCompare(b.code));
+        setCurrencies(list);
+        // Ensure defaults exist; if not, pick first two different
+        const codes = list.map((c) => c.code);
+        if (!codes.includes(from) || !codes.includes(to) || from === to) {
+          setFrom(codes[0]);
+          setTo(codes.find((c) => c !== codes[0]) || codes[0]);
+        }
+      } catch (e) {
+        // keep silent; UI works but selects may be empty
+      }
+    }
+    loadSymbols();
+    return () => controller.abort();
+  }, []);
+
+  function makeFlagFromCurrency(code: string): string | undefined {
+    const region = code === "EUR" ? "EU" : code.slice(0, 2);
+    // Validate region
+    try {
+      const display = new (Intl as any).DisplayNames(undefined, {
+        type: "region",
+      });
+      const name = display.of(region);
+      if (!name || typeof name !== "string") return undefined;
+    } catch {
+      return undefined;
+    }
+    const A = 0x1f1e6;
+    const flag = String.fromCodePoint(
+      ...region
+        .toUpperCase()
+        .split("")
+        .map((ch) => A + ch.charCodeAt(0) - 65)
+    );
+    return flag;
+  }
 
   const isValidAmount = useMemo(() => {
     const n = Number(amount);
@@ -66,7 +121,8 @@ function App() {
             label="From"
             value={from}
             onChange={setFrom}
-            currencies={CURRENCIES}
+            currencies={currencies}
+            disabledCodes={[to]}
           />
           <SwapButton onClick={handleSwap} />
           <CurrencySelect
@@ -74,7 +130,8 @@ function App() {
             label="To"
             value={to}
             onChange={setTo}
-            currencies={CURRENCIES}
+            currencies={currencies}
+            disabledCodes={[from]}
           />
         </div>
 
