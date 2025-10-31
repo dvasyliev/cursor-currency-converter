@@ -3,7 +3,10 @@ import AmountInput from "./components/AmountInput";
 import CurrencySelect from "./components/CurrencySelect";
 import SwapButton from "./components/SwapButton";
 import Result from "./components/Result";
-import { convert } from "./data/rates";
+import { fetchCurrencies } from "./api/fetchCurrencies";
+import { getRates } from "./api/getRates";
+import { makeFlagFromCurrency } from "./utils/makeFlagFromCurrency";
+import { convertAmount } from "./utils/convertAmount";
 
 function App() {
   const [amount, setAmount] = useState<string>("1");
@@ -12,6 +15,7 @@ function App() {
   const [total, setTotal] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hasConverted, setHasConverted] = useState(false);
   const [currencies, setCurrencies] = useState<
     { code: string; name: string; flag?: string }[]
   >([]);
@@ -20,11 +24,7 @@ function App() {
     const controller = new AbortController();
     async function loadSymbols() {
       try {
-        const res = await fetch("https://api.frankfurter.app/currencies", {
-          signal: controller.signal,
-        });
-        if (!res.ok) throw new Error("Failed to load currencies");
-        const data: Record<string, string> = await res.json();
+        const data = await fetchCurrencies(controller.signal);
         const list = Object.entries(data)
           .map(([code, name]) => ({
             code,
@@ -33,41 +33,25 @@ function App() {
           }))
           .sort((a, b) => a.code.localeCompare(b.code));
         setCurrencies(list);
-        // Ensure defaults exist; if not, pick first two different
         const codes = list.map((c) => c.code);
         if (!codes.includes(from) || !codes.includes(to) || from === to) {
           setFrom(codes[0]);
           setTo(codes.find((c) => c !== codes[0]) || codes[0]);
         }
       } catch (e) {
-        // keep silent; UI works but selects may be empty
+        // keep silent
       }
     }
     loadSymbols();
     return () => controller.abort();
   }, []);
 
-  function makeFlagFromCurrency(code: string): string | undefined {
-    const region = code === "EUR" ? "EU" : code.slice(0, 2);
-    // Validate region
-    try {
-      const display = new (Intl as any).DisplayNames(undefined, {
-        type: "region",
-      });
-      const name = display.of(region);
-      if (!name || typeof name !== "string") return undefined;
-    } catch {
-      return undefined;
-    }
-    const A = 0x1f1e6;
-    const flag = String.fromCodePoint(
-      ...region
-        .toUpperCase()
-        .split("")
-        .map((ch) => A + ch.charCodeAt(0) - 65)
-    );
-    return flag;
-  }
+  // Clear result and errors when amount/from/to changes
+  React.useEffect(() => {
+    setTotal(null);
+    setError(null);
+    setHasConverted(false);
+  }, [amount, from, to]);
 
   const isValidAmount = useMemo(() => {
     const n = Number(amount);
@@ -79,11 +63,14 @@ function App() {
     setError(null);
     setLoading(true);
     try {
-      const { total } = await convert(Number(amount), from, to);
+      const data = await getRates(Number(amount), from, to);
+      const { total } = convertAmount(Number(amount), data.rates[to]);
       setTotal(total);
-    } catch (e: any) {
+      setHasConverted(true);
+    } catch (e) {
       setError(e?.message || "Failed to fetch rate");
       setTotal(null);
+      setHasConverted(true);
     } finally {
       setLoading(false);
     }
@@ -93,10 +80,13 @@ function App() {
     setFrom(to);
     setTo(from);
     if (isValidAmount) {
-      // Recalculate using swapped currencies
       try {
         setLoading(true);
-        const { total: swapped } = await convert(Number(amount), to, from);
+        const data = await getRates(Number(amount), to, from);
+        const { total: swapped } = convertAmount(
+          Number(amount),
+          data.rates[from]
+        );
         setTotal(swapped);
         setError(null);
       } catch (e: any) {
@@ -141,7 +131,12 @@ function App() {
           </p>
         )}
         {loading && <p className="result">Fetching latest rate…</p>}
-        {total != null && !loading && !error && (
+        {!hasConverted && !loading && !error && (
+          <p className="result" style={{ color: "#666" }}>
+            Enter an amount and click convert to see the result.
+          </p>
+        )}
+        {total != null && !loading && !error && hasConverted && (
           <Result amount={Number(amount)} from={from} to={to} total={total} />
         )}
 
