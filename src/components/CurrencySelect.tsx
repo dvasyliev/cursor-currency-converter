@@ -26,7 +26,7 @@ export default function CurrencySelect({
         id={id}
         className="select"
         value={value}
-        onChange={(e) => onChange(e.target.value as any)}
+        onChange={(e: React.ChangeEvent<HTMLSelectElement>) => onChange(e.target.value)}
       >
         {currencies.map((c) => (
           <option

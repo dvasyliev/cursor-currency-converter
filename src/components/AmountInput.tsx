@@ -4,12 +4,14 @@ type Props = {
   value: string;
   onChange: (value: string) => void;
   maxIntegerDigits?: number; // limit digits before decimal point
+  label?: string;
 };
 
 export default function AmountInput({
   value,
   onChange,
   maxIntegerDigits = 12,
+  label = "Enter Amount",
 }: Props) {
   const helpId = "amount-help";
 
@@ -17,7 +19,8 @@ export default function AmountInput({
     const raw = e.target.value;
     // allow only digits and a single decimal point
     let cleaned = raw.replace(/[^0-9.]/g, "");
-    cleaned = cleaned.replace(/(\..*)\./g, "$1"); // keep only first dot
+    // keep only first decimal point
+    cleaned = cleaned.replace(/(\..*)\./g, "$1");
 
     const integerPart = cleaned.split(".")[0];
     if (integerPart.length > maxIntegerDigits) {
@@ -29,7 +32,7 @@ export default function AmountInput({
 
   return (
     <div>
-      <label htmlFor="amount">Enter Amount</label>
+      <label htmlFor="amount">{label}</label>
       <input
         id="amount"
         type="number"
@@ -44,7 +47,7 @@ export default function AmountInput({
         pattern="[0-9]*[.,]?[0-9]*"
       />
       <small id={helpId} className="help">
-        Up to 12 digits allowed before the decimal point.
+        Up to {maxIntegerDigits} digits allowed before the decimal point.
       </small>
     </div>
   );
